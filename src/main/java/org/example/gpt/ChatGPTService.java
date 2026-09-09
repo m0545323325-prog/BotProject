@@ -92,6 +92,12 @@ public class ChatGPTService {
                 .replace("```", "")
                 .trim();
 
+        int startIndex = cleanedJson.indexOf('[');
+        int endIndex = cleanedJson.lastIndexOf(']');
+        if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+            cleanedJson = cleanedJson.substring(startIndex, endIndex + 1);
+        }
+
         // 4. Parse the cleaned JSON array string
         return parseJsonToPollQuestions(cleanedJson);
     }

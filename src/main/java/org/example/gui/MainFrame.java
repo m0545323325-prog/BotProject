@@ -41,7 +41,9 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
     private JPanel aiPollInputPanel;
     private JTextField aiTopicField;
     private JTextArea aiPreviewArea;
+    private JPanel aiQuestionsContainerPanel;
     private List<QuestionInputPanel> questionInputPanels;
+    private List<QuestionInputPanel> aiQuestionInputPanels;
     private List<PollQuestion> lastGeneratedQuestions;
 
     private JRadioButton immediateSendRadio;
@@ -231,14 +233,25 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
     }
 
     public void removeQuestionInputPanel(QuestionInputPanel panel) {
-        if (questionInputPanels.size() <= 1) {
-            JOptionPane.showMessageDialog(this, "A poll must have at least one question.", "Limit Reached", JOptionPane.WARNING_MESSAGE);
-            return;
+        if (questionInputPanels != null && questionInputPanels.contains(panel)) {
+            if (questionInputPanels.size() <= 1) {
+                JOptionPane.showMessageDialog(this, "A poll must have at least one question.", "Limit Reached", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            questionInputPanels.remove(panel);
+            manualPollInputPanel.remove(panel);
+            manualPollInputPanel.revalidate();
+            manualPollInputPanel.repaint();
+        } else if (aiQuestionInputPanels != null && aiQuestionInputPanels.contains(panel)) {
+            if (aiQuestionInputPanels.size() <= 1) {
+                JOptionPane.showMessageDialog(this, "A poll must have at least one question.", "Limit Reached", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            aiQuestionInputPanels.remove(panel);
+            aiQuestionsContainerPanel.remove(panel);
+            aiQuestionsContainerPanel.revalidate();
+            aiQuestionsContainerPanel.repaint();
         }
-        questionInputPanels.remove(panel);
-        manualPollInputPanel.remove(panel);
-        manualPollInputPanel.revalidate();
-        manualPollInputPanel.repaint();
     }
 
     private JPanel createAIPollInputPanel() {
@@ -246,19 +259,20 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         JPanel inputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        inputPanel.add(new JLabel("Topic:"));
-        aiTopicField = new JTextField(20);
+        inputPanel.add(new JLabel("Topic / Prompt:"));
+        aiTopicField = new JTextField(25);
         inputPanel.add(aiTopicField);
-        JButton generateButton = new JButton("Generate Questions");
+        JButton generateButton = new JButton("Generate Questions (צור שאלות)");
         generateButton.addActionListener(this::generateAIPollQuestions);
         inputPanel.add(generateButton);
         panel.add(inputPanel, BorderLayout.NORTH);
 
-        aiPreviewArea = new JTextArea(10, 40);
-        aiPreviewArea.setEditable(false);
-        aiPreviewArea.setLineWrap(true);
-        aiPreviewArea.setWrapStyleWord(true);
-        JScrollPane scrollPane = new JScrollPane(aiPreviewArea);
+        aiQuestionsContainerPanel = new JPanel();
+        aiQuestionsContainerPanel.setLayout(new BoxLayout(aiQuestionsContainerPanel, BoxLayout.Y_AXIS));
+        aiQuestionInputPanels = new ArrayList<>();
+
+        JScrollPane scrollPane = new JScrollPane(aiQuestionsContainerPanel);
+        scrollPane.setBorder(BorderFactory.createTitledBorder("שאלות ותשובות שנוצרו ע\"י AI (ניתן לעריכה בשדות הקלט)"));
         panel.add(scrollPane, BorderLayout.CENTER);
 
         return panel;
@@ -271,7 +285,14 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
             return;
         }
 
-        aiPreviewArea.setText("Generating questions for topic: '" + topic + "'...\nThis may take a moment.");
+        aiQuestionsContainerPanel.removeAll();
+        aiQuestionInputPanels.clear();
+        JLabel loadingLabel = new JLabel("יוצר שאלות ותשובות עבור: '" + topic + "'... נא להמתין");
+        loadingLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        aiQuestionsContainerPanel.add(loadingLabel);
+        aiQuestionsContainerPanel.revalidate();
+        aiQuestionsContainerPanel.repaint();
+
         new SwingWorker<List<PollQuestion>, Void>() {
             @Override
             protected List<PollQuestion> doInBackground() throws IOException, InterruptedException {
@@ -283,23 +304,49 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
                 try {
                     lastGeneratedQuestions = get();
                     SwingUtilities.invokeLater(() -> {
+                        aiQuestionsContainerPanel.removeAll();
+                        aiQuestionInputPanels.clear();
+
+                        questionInputPanels.clear();
+                        manualPollInputPanel.removeAll();
+                        JButton addQuestionButton = new JButton("Add Question");
+                        addQuestionButton.addActionListener(ev -> addQuestionInputPanel());
+                        manualPollInputPanel.add(addQuestionButton);
+
                         if (lastGeneratedQuestions != null && !lastGeneratedQuestions.isEmpty()) {
-                            StringBuilder sb = new StringBuilder("Generated Questions:\n");
-                            for (int i = 0; i < lastGeneratedQuestions.size(); i++) {
-                                PollQuestion q = lastGeneratedQuestions.get(i);
-                                sb.append(String.format("%d. %s\n", i + 1, q.getQuestionText()));
-                                for (PollOption option : q.getOptions()) {
-                                    sb.append(String.format("   - %s\n", option.getOptionText()));
-                                }
+                            for (PollQuestion q : lastGeneratedQuestions) {
+                                // Add to AI container input fields
+                                QuestionInputPanel aiQPanel = new QuestionInputPanel(MainFrame.this);
+                                aiQPanel.setQuestionText(q.getQuestionText());
+                                aiQPanel.setOptions(q.getOptions());
+                                aiQuestionInputPanels.add(aiQPanel);
+                                aiQuestionsContainerPanel.add(aiQPanel);
+
+                                // Add to Manual container input fields
+                                QuestionInputPanel manualQPanel = new QuestionInputPanel(MainFrame.this);
+                                manualQPanel.setQuestionText(q.getQuestionText());
+                                manualQPanel.setOptions(q.getOptions());
+                                questionInputPanels.add(manualQPanel);
+                                manualPollInputPanel.add(manualQPanel);
                             }
-                            aiPreviewArea.setText(sb.toString());
                         } else {
-                            aiPreviewArea.setText("No questions generated. Please try a different topic or check API key.");
+                            JLabel noQuestionsLabel = new JLabel("לא נוצרו שאלות. אנא נסה נושא/פרומפט אחר.");
+                            noQuestionsLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
+                            aiQuestionsContainerPanel.add(noQuestionsLabel);
                         }
+                        aiQuestionsContainerPanel.revalidate();
+                        aiQuestionsContainerPanel.repaint();
+                        manualPollInputPanel.revalidate();
+                        manualPollInputPanel.repaint();
                     });
                 } catch (Exception ex) {
                     SwingUtilities.invokeLater(() -> {
-                        aiPreviewArea.setText("Error generating questions: " + ex.getMessage());
+                        aiQuestionsContainerPanel.removeAll();
+                        JLabel errorLabel = new JLabel("שגיאה ביצירת שאלות: " + ex.getMessage());
+                        errorLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
+                        aiQuestionsContainerPanel.add(errorLabel);
+                        aiQuestionsContainerPanel.revalidate();
+                        aiQuestionsContainerPanel.repaint();
                         JOptionPane.showMessageDialog(MainFrame.this, "Error generating questions: " + ex.getMessage(), "API Error", JOptionPane.ERROR_MESSAGE);
                     });
                 }
@@ -338,7 +385,7 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
         bottomPanel.add(sendOptionsPanel, BorderLayout.NORTH);
 
         JPanel actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton launchPollButton = new JButton("Launch Poll");
+        JButton launchPollButton = new JButton("Launch Poll (שגר סקר)");
         launchPollButton.addActionListener(this::launchPoll);
         actionButtonsPanel.add(launchPollButton);
 
@@ -363,16 +410,17 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
 
         List<PollQuestion> questions;
         try {
-            if (manualCreationRadio.isSelected()) {
-                questions = new ArrayList<>();
-                for (QuestionInputPanel qPanel : questionInputPanels) {
+            questions = new ArrayList<>();
+            List<QuestionInputPanel> activePanels = manualCreationRadio.isSelected() ? questionInputPanels : aiQuestionInputPanels;
+            
+            if (activePanels != null && !activePanels.isEmpty()) {
+                for (QuestionInputPanel qPanel : activePanels) {
                     questions.add(qPanel.buildPollQuestion());
                 }
-            } else {
-                if (lastGeneratedQuestions == null || lastGeneratedQuestions.isEmpty()) {
-                    throw new IllegalArgumentException("No AI questions available. Please generate them first.");
-                }
+            } else if (!manualCreationRadio.isSelected() && lastGeneratedQuestions != null && !lastGeneratedQuestions.isEmpty()) {
                 questions = lastGeneratedQuestions;
+            } else {
+                throw new IllegalArgumentException("No poll questions available in input fields. Please create or generate questions first.");
             }
         } catch (IllegalArgumentException ex) {
             JOptionPane.showMessageDialog(this, "Poll Validation Error: " + ex.getMessage(), "Validation Error", JOptionPane.WARNING_MESSAGE);
@@ -415,8 +463,14 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
             manualPollInputPanel.revalidate();
             manualPollInputPanel.repaint();
 
+            if (aiQuestionInputPanels != null) aiQuestionInputPanels.clear();
+            if (aiQuestionsContainerPanel != null) {
+                aiQuestionsContainerPanel.removeAll();
+                aiQuestionsContainerPanel.revalidate();
+                aiQuestionsContainerPanel.repaint();
+            }
+
             aiTopicField.setText("");
-            aiPreviewArea.setText("");
             lastGeneratedQuestions = null;
 
             delayMinutesField.setText("1");
@@ -647,6 +701,41 @@ public class MainFrame extends JFrame implements PollManager.CommunityListener {
             addOptionField();
 
             add(optionsPanel, BorderLayout.CENTER);
+        }
+
+        public void setQuestionText(String text) {
+            questionField.setText(text);
+        }
+
+        public void setOptions(List<PollOption> options) {
+            optionFields.clear();
+            optionsPanel.removeAll();
+
+            JButton addOptionButton = new JButton("Add Option");
+            addOptionButton.addActionListener(e -> addOptionField());
+            optionsPanel.add(addOptionButton);
+
+            if (options != null) {
+                for (PollOption opt : options) {
+                    addOptionFieldWithText(opt.getOptionText());
+                }
+            }
+            optionsPanel.revalidate();
+            optionsPanel.repaint();
+        }
+
+        private void addOptionFieldWithText(String initialText) {
+            if (optionFields.size() >= 4) return;
+            JPanel optionRow = new JPanel(new BorderLayout(5, 5));
+            JTextField optionField = new JTextField(initialText, 25);
+            optionFields.add(optionField);
+            optionRow.add(optionField, BorderLayout.CENTER);
+
+            JButton removeOptionButton = new JButton("-");
+            removeOptionButton.addActionListener(e -> removeOptionField(optionRow, optionField));
+            optionRow.add(removeOptionButton, BorderLayout.EAST);
+
+            optionsPanel.add(optionRow);
         }
 
         private void addOptionField() {
