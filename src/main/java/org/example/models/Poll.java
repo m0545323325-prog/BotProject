@@ -3,6 +3,7 @@ package org.example.models;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -54,7 +55,9 @@ public class Poll {
                         PollQuestion::getQuestionText,
                         question -> question.getOptions().stream()
                                 .sorted(Comparator.comparingInt(PollOption::getVoteCount).reversed())
-                                .collect(Collectors.toList())
+                                .collect(Collectors.toList()),
+                        (a, b) -> a,
+                        LinkedHashMap::new
                 ));
     }
 

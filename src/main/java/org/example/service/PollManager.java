@@ -102,7 +102,8 @@ public class PollManager {
     }
 
     public boolean isPollActive() {
-        return activePoll.get() != null;
+        Poll poll = activePoll.get();
+        return poll != null && poll.isActive();
     }
 
     public Poll getActivePoll() {

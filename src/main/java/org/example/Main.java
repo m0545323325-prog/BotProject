@@ -1,6 +1,6 @@
 package org.example;
 
-import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
 import org.example.bot.MyTelegramBot;
 import org.example.gui.MainFrame;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
@@ -8,12 +8,21 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
 import javax.swing.*;
+import java.awt.*;
 
 public class Main {
     public static void main(String[] args) {
-        // 1. Set FlatLaf Look and Feel
+        // 1. Set FlatLaf Dark Look and Feel for a modern, professional appearance
         try {
-            UIManager.setLookAndFeel(new FlatLightLaf());
+            UIManager.setLookAndFeel(new FlatDarkLaf());
+            // Customize global UI properties for a polished look
+            UIManager.put("Button.arc", 12);
+            UIManager.put("Component.arc", 12);
+            UIManager.put("ProgressBar.arc", 12);
+            UIManager.put("TextComponent.arc", 8);
+            UIManager.put("TabbedPane.selectedBackground", new Color(60, 63, 65));
+            UIManager.put("TabbedPane.underlineColor", new Color(75, 110, 175));
+            UIManager.put("Table.alternateRowColor", new Color(43, 45, 48));
         } catch (UnsupportedLookAndFeelException e) {
             System.err.println("Failed to initialize FlatLaf look and feel.");
         }
